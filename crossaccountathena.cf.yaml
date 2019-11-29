@@ -1,0 +1,74 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Example AWS Lambda function for Amazon Athena Cross Account functionality
+
+Parameters:
+  GlueDataCatalogAccountID:
+    Type: String
+    Description: AWS account ID for Glue Data Catalog
+    AllowedPattern: \d{12}
+    ConstraintDescription: Must be an AWS account ID
+
+Resources:
+  AthenaCrossAccountLambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Description: Allows Amazon Athena to query an AWS Glue Data Catalog in a different account
+      Code:
+        S3Key: athena-cross-account-access/functionv3.zip
+        S3Bucket: aws-emr-bda-public
+      Environment:
+        Variables:
+          TARGET_ACCOUNT_ID:
+            Ref: "GlueDataCatalogAccountID"
+      Handler: heracles.lambda.handler
+      Role:
+        Fn::GetAtt: [ LambdaExecutionRole, Arn ]
+      Runtime: python3.7
+      Timeout: 300
+      MemorySize: 1024
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: AWSLambdaBasicExecutionRole
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: "*"
+      - PolicyName: AWSGlueReadOnlyAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - glue:BatchGetPartition
+            - glue:GetDatabase
+            - glue:GetDatabases
+            - glue:GetPartition
+            - glue:GetPartitions
+            - glue:GetTable
+            - glue:GetTables
+            - glue:GetTableVersion
+            - glue:GetTableVersions
+            Resource: "*"
+Outputs:
+  CrossAccountPrincipal:
+    Description: The Principal to grant access to in the Glue Data Catalog Account
+    Value:
+      !Join [ ":", [ "arn:aws:sts:", !Ref "AWS::AccountId", !Join [ "/", [ "assumed-role", !Ref LambdaExecutionRole, !Ref AthenaCrossAccountLambdaFunction ]]]]
