@@ -76,9 +76,10 @@ This creates a zip file in `target/` that can be uploaded to your Lambda functio
 Create a new function in the account where you will be running your Athena queries.
 
 ```shell
-export GLUE_ACCOUNT_ID=1111111
+export GLUE_ACCOUNT_ID=<cross account id where Glue Data Catalog exists>
+export ATHENA_ACCOUNT_ID=<current account from which cross account Glue Data Catalog will be queried>
 export FUNCTION_NAME=cross-account-athena
-export LAMBDA_ROLE=arn:aws:iam::${GLUE_ACCOUNT_ID}:role/${ROLE_NAME}
+export LAMBDA_ROLE=arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}
 
 
 aws lambda create-function \
@@ -92,15 +93,17 @@ aws lambda create-function \
   --timeout 60
 ```
 
+### Register Data Source with Athena
+
+Follow the instructions in the [Hive Metastore blog post](https://aws.amazon.com/blogs/big-data/connect-amazon-athena-to-your-apache-hive-metastore-and-use-user-defined-functions/) to create a workgroup to access the preview functionality, then follow the instructions for [Connecting Athena to an Apache Hive Metastore](https://docs.aws.amazon.com/athena/latest/ug/connect-to-data-source-hive.html). On the **Connection details** page, for **Lambda function**, select the Lambda function that was created above. Name your catalog "crossaccountcatalog".
+
 ### Grant Cross-account Access to Lambda
 
 Finally we need to [grant cross-account access](https://docs.aws.amazon.com/glue/latest/dg/cross-account-access.html) using a resource policy. 
 
-This command allows the Lamba function you created in the first account to read any Glue Data Catalog database or table.
+This command allows the Lamba function you created in the first account to read any Glue Data Catalog database or table in second account. Run this command in second account where Glue Data Catalog exists.
 
 ```shell
-export ATHENA_ACCOUNT_ID=2222222
-
 aws glue put-resource-policy --policy-in-json '{
   "Version": "2012-10-17",
   "Statement": [
@@ -139,19 +142,19 @@ aws lambda invoke --function-name ${FUNCTION_NAME} \
 ```
 
 ```shell
-# ~~~TODO: Fix apiRequest parameters~~~
 aws lambda invoke --function-name ${FUNCTION_NAME} \
   --log-type Tail \
-  --payload '{"apiName":"getTable","apiRequest":{"databaseName": "db", "tableName": "table"}}' \
+  --payload '{"apiName":"getTable","apiRequest":{"dbName":"db", "tableName": "table"}}' \
   getTable.txt
 ```
 
 - You can also invoke Athena commands from the CLI
 
 ```shell
-aws athena start-query-execution --query-string "SHOW tables" \
+aws athena start-query-execution --query-string "select * from <CATALOG_NAME>.<DATABASE_NAME>.<TABLE_NAME>" \
   --query-execution-context "Database=<CATALOG_NAME>.<DATABASE_NAME>" \
-  --result-configuration "OutputLocation=s3://<bucket>/tmp/athenalambda/results"
+  --result-configuration "OutputLocation=s3://<bucket>/tmp/athenalambda/results" \
+  --work-group AmazonAthenaPreviewFunctionality
 ```
 
 ```shell
@@ -172,21 +175,5 @@ If you want to update the code, do so, run `make build` and then update the Lamb
 aws lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file fileb://target/functionv2.zip
 ```
 
-## Other thoughts
-
-### Public access?
-
-```shell
-aws lambda add-permission --function-name ${FUNCTION_NAME} --statement-id opendata-public --action "lambda:InvokeFunction" --principal '*'
-```
-
-### TODO
-
-We want to make this a little flexible:
-
-- Inclusions/exclusions for databases
-- AuthZ?
-- Write access
-
 ## Limitations
-- Read only
+- Read only: The currently implementation only implements the necessary functions for read only access as we assume the centralized data catalog is managed by a central team as well.
