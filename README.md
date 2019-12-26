@@ -6,9 +6,7 @@
 
 **WARNING**
 
-This is intended to be a proof of concept.
-
-While functional, this may not be the recommended way to enable cross-account Athena queries in the future.
+This is one of many ways to be able to access cross account data catalogs that currently exist. Please evaluate all your options to see which one fits best for your use case.
 
 -------------------------------------
 
