@@ -12,6 +12,11 @@ class GetAllDatabases(HandlerBase):
         return {'databases': GlueClient().get_all_database_names()}
 
 
+class GetDatabases(HandlerBase):
+    def execute(self, request_dict):
+        return {'databases': GlueClient().get_all_database_names()}
+
+
 class GetAllDatabaseObjects(HandlerBase):
     def execute(self, request_dict):
         databases = GlueClient().get_all_databases()
