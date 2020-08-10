@@ -7,6 +7,11 @@ Parameters:
     Description: AWS account ID for Glue Data Catalog
     AllowedPattern: \d{12}
     ConstraintDescription: Must be an AWS account ID
+  AthenaCatalogName:
+    Type: String
+    Description: Athena Catalog name for custom data source
+    AllowedPattern: ^[a-z0-9_]*$
+    ConstraintDescription: Must be lowercase alphabets, digits or underscore
 
 Resources:
   AthenaCrossAccountLambdaFunction:
@@ -20,6 +25,8 @@ Resources:
         Variables:
           TARGET_ACCOUNT_ID:
             Ref: "GlueDataCatalogAccountID"
+          CATALOG_NAME:
+            Ref: "AthenaCatalogName"
       Handler: heracles.lambda.handler
       Role:
         Fn::GetAtt: [ LambdaExecutionRole, Arn ]
