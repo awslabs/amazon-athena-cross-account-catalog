@@ -39,6 +39,19 @@ class GetDatabase(HandlerBase):
         return {"database": self.encode_response(db).decode('utf-8')}
 
 
+class GetDatabaseNames(HandlerBase):
+    def execute(self, request_dict):
+        return {'databases': GlueClient().get_all_database_names()}
+
+class ListDatabases(HandlerBase):
+    def execute(self, request_dict):
+        databases = GlueClient().get_all_databases()
+        database_list = []
+        for database in databases:
+            hive_database = HiveMappers.map_glue_database(database)
+            database_list.append(self.encode_response(hive_database).decode('utf-8'))
+        return {'databases': database_list}
+
 class GetAllTables(HandlerBase):
     def execute(self, request_dict):
         databaseName = request_dict.get('dbName')
@@ -78,6 +91,31 @@ class GetTable(HandlerBase):
         )
         table = HiveMappers.map_glue_table(databaseName, tableName, response['Table'])
         return {"tableDesc": self.encode_response(table).decode('utf-8')}
+
+class ListTables(HandlerBase):
+    def execute(self, request_dict):
+        databaseName = request_dict.get('dbName')
+        filterString = request_dict.get('filter', '.*') or '.*'  # The actual dictionary may have a "None" value, but we need to pass a wildcard
+        tables = GlueClient().get_all_tables(
+            DatabaseName=databaseName,
+            Expression=filterString,
+        )
+        table_list = []
+
+        for table in tables:
+            hive_table = HiveMappers.map_glue_table(databaseName, table['Name'], table)
+            table_list.append(self.encode_response(hive_table).decode('utf-8'))
+        return {'tables': table_list}
+
+class GetTableNames(HandlerBase):
+    def execute(self, request_dict):
+        databaseName = request_dict.get('dbName')
+        filterString = request_dict.get('filter', '.*') or '.*'  # The actual dictionary may have a "None" value, but we need to pass a wildcard
+
+        return {"tables": GlueClient().get_all_table_names(
+            DatabaseName=databaseName,
+            Expression=filterString,
+        )}
 
 
 class GetPartitions(HandlerBase):
