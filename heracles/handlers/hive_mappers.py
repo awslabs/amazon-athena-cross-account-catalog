@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import time
+import base64, json, os
 
 from heracles.hive.hive_metastore import ttypes
 
@@ -16,6 +17,19 @@ class HiveMappers:
             parameters=glue_database.get('Parameters', {})
         )
 
+    def map_presto_view(view_text):
+        b64_text = view_text.split(" ")[3]   # fetch base64 encoded string
+        b_encode_text = b64_text.encode()
+        plain_text = base64.b64decode(b_encode_text)
+        view_json = json.loads(plain_text)
+        
+        # Set the catalog name to the one being defined in Athena. Getting this from new ENV variable
+        view_json['catalog'] = os.environ['CATALOG_NAME'] 
+        
+        plain_text = json.dumps(view_json)
+        b_encode_text = base64.b64encode(plain_text.encode())
+        return "/* Presto View: {} */".format(b_encode_text.decode())
+    
     @staticmethod
     def map_glue_table(databaseName, tableName, glue_table):
         # Create the base table type
@@ -37,6 +51,16 @@ class HiveMappers:
                 ) for key in glue_table.get('PartitionKeys', [])
             ]
         )
+        
+        # To distinguish View from External table
+        if glue_table['TableType'] == "VIRTUAL_VIEW":
+            print("{} is a view!".format(table.tableName))
+            table.viewOriginalText = HiveMappers.map_presto_view(glue_table['ViewOriginalText'])
+            
+            # View doesn't contain SerdeInfo, so setting these to empty to prevent exception
+            glue_table['StorageDescriptor']['SerdeInfo']['SerializationLibrary'] = ""
+            glue_table['StorageDescriptor']['SerdeInfo']['Parameters'] = {}
+        
         # Map the storage description
         sd = ttypes.StorageDescriptor(
             cols=[

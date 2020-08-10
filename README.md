@@ -74,17 +74,18 @@ This creates a zip file in `target/` that can be uploaded to your Lambda functio
 Create a new function in the account where you will be running your Athena queries.
 
 ```shell
-export GLUE_ACCOUNT_ID=<cross account id where Glue Data Catalog exists>
-export ATHENA_ACCOUNT_ID=<current account from which cross account Glue Data Catalog will be queried>
-export FUNCTION_NAME=cross-account-athena
-export LAMBDA_ROLE=arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}
+export GLUE_ACCOUNT_ID="<cross account id where Glue Data Catalog exists>"
+export ATHENA_ACCOUNT_ID="<requester_account>"
+export ATHENA_CATALOG_NAME="<catalog_name>"
+export FUNCTION_NAME="<your-desirect-function-name>"
+export LAMBDA_ROLE="arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}"
 
 
 aws lambda create-function \
   --function-name ${FUNCTION_NAME} \
   --runtime python3.7 \
   --role ${LAMBDA_ROLE} \
-  --environment Variables={TARGET_ACCOUNT_ID=${GLUE_ACCOUNT_ID}} \
+  --environment Variables="{CATALOG_NAME=${ATHENA_CATALOG_NAME},TARGET_ACCOUNT_ID=${GLUE_ACCOUNT_ID}}" \
   --zip-file fileb://target/functionv2.zip \
   --handler "heracles.lambda.handler" \
   --memory-size 256 \
