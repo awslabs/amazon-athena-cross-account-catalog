@@ -10,17 +10,36 @@ Parameters:
   AthenaCatalogName:
     Type: String
     Description: Athena Catalog name for custom data source
-    AllowedPattern: ^[a-z0-9_]*$
+    AllowedPattern: ^[a-z0-9_@-]*$
     ConstraintDescription: Must be lowercase alphabets, digits or underscore
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket containing function code zip file
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 path to function zip file
 
 Resources:
+  AthenaCrossAccountCatalog:
+    Type: AWS::Athena::DataCatalog
+    Properties:
+      Name:
+        Ref: "AthenaCatalogName"
+      Description: Custom Hive Catalog Description
+      Type: HIVE
+      Parameters: 
+        metadata-function: 
+          Fn::GetAtt: [ AthenaCrossAccountLambdaFunction, Arn ]
+  
   AthenaCrossAccountLambdaFunction:
     Type: "AWS::Lambda::Function"
     Properties:
       Description: Allows Amazon Athena to query an AWS Glue Data Catalog in a different account
       Code:
-        S3Key: athena-cross-account-access/functionv3.zip
-        S3Bucket: aws-emr-bda-public
+        S3Key: 
+          Ref: LambdaCodeS3Key
+        S3Bucket: 
+          Ref: LambdaCodeS3Bucket
       Environment:
         Variables:
           TARGET_ACCOUNT_ID:

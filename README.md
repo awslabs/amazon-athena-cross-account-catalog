@@ -22,16 +22,14 @@ Users must have access to the S3 resources that the tables point to and be grant
 ## Deployment
 
 Usage of this package requires the following:
-- An `AmazonAthenaPreviewFunctionality` workgroup as per the [Amazon Athena Hive Metastore](https://aws.amazon.com/blogs/big-data/connect-amazon-athena-to-your-apache-hive-metastore-and-use-user-defined-functions/) blog post.
 - Lambda function created and registered with Athena as instructed in [Connecting Athena to an Apache Hive Metastore](https://docs.aws.amazon.com/athena/latest/ug/connect-to-data-source-hive.html)
 - IAM role for the Lambda function to access Glue
 - Cross-account execution access granted to Lambda function
 
 Follow the steps below, replacing the variables as necessary. You can also use the the [crossaccountathena.cf.yaml](crossaccountathena.cf.yaml) CloudFormation template to create the IAM role and Lambda function, but you'll need to perform the [Grant Cross-account Access to Lambda](#grant-cross-account-access-to-lambda) step manually.
 
-### Register account for preview
+For CloudFormation, download the [function2.zip](target/function2.zip) and upload it to your S3 bucket as it needs to be provided in the CloudFormation template. Then, while launching the CFN stack, specify this S3 bucket, key path, source AWS account ID and Athena catalog name. It'll create the Lambda execution role, function and Athena Catalog.
 
-Follow the instructions on the [Amazon Athena Hive Metastore](https://aws.amazon.com/blogs/big-data/connect-amazon-athena-to-your-apache-hive-metastore-and-use-user-defined-functions/) blog post and create a workgroup with the name `AmazonAthenaPreviewFunctionality`.
 
 ### Create IAM Role
 
@@ -176,3 +174,4 @@ aws lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file file
 
 ## Limitations
 - Read only: The currently implementation only implements the necessary functions for read only access as we assume the centralized data catalog is managed by a central team as well.
+- When very large number of partitions are present in the source Glue catalog, running query on the table can encounter long delay delay, timeout and Lambda payload size limit exceed. This is because Lambda functions will need to fetch all partitions, which will require iterative GetPartitions API calls to Glue. Some workarounds to this will be to query table with specific partitions, or to reduce number of partitions in the source table. 
