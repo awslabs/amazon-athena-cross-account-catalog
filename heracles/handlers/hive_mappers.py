@@ -28,7 +28,7 @@ class HiveMappers:
         
         plain_text = json.dumps(view_json)
         b_encode_text = base64.b64encode(plain_text.encode())
-        return "/* Presto View: {} */".format(b_encode_text.decode())
+        return "/* Presto View: {} */".format(b_encode_text.decode()), view_json['originalSql']
     
     @staticmethod
     def map_glue_table(databaseName, tableName, glue_table):
@@ -54,8 +54,8 @@ class HiveMappers:
         
         # To distinguish View from External table
         if glue_table['TableType'] == "VIRTUAL_VIEW":
-            print("{} is a view!".format(table.tableName))
-            table.viewOriginalText = HiveMappers.map_presto_view(glue_table['ViewOriginalText'])
+            # Manipulating the catalog within ViewOriginalText so that it doesn't point to original catalog name
+            table.viewOriginalText, table.viewExpandedText = HiveMappers.map_presto_view(glue_table['ViewOriginalText'])
             
             # View doesn't contain SerdeInfo, so setting these to empty to prevent exception
             glue_table['StorageDescriptor']['SerdeInfo']['SerializationLibrary'] = ""
