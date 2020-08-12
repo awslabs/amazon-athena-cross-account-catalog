@@ -7,11 +7,12 @@ import boto3
 class GlueClient(object):
     _instance = None
     _catalog_id = None
+    _catalog_region = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = object.__new__(cls)
-            GlueClient._instance.client = boto3.client('glue')
+            GlueClient._instance.client = boto3.client('glue', region_name = GlueClient._catalog_region)
         return cls._instance
 
     def __init__(self):

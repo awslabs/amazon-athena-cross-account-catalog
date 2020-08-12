@@ -7,17 +7,20 @@ Parameters:
     Description: AWS account ID for Glue Data Catalog
     AllowedPattern: \d{12}
     ConstraintDescription: Must be an AWS account ID
+  GlueDataCatalogRegion:
+    Type: String
+    Description: AWS region ID for Glue Catalog (Eg. us-east-1). Defaults to current region if not specified.
   AthenaCatalogName:
     Type: String
     Description: Athena Catalog name for custom data source
     AllowedPattern: ^[a-z0-9_@-]*$
-    ConstraintDescription: Must be lowercase alphabets, digits or underscore
+    ConstraintDescription: Must be lowercase alphabets, digits, underscore, or hyphen
   LambdaCodeS3Bucket:
     Type: String
     Description: S3 bucket containing function code zip file
   LambdaCodeS3Key:
     Type: String
-    Description: S3 path to function zip file
+    Description: S3 path to function zip file. Eg. prefix/functionv2.zip
 
 Resources:
   AthenaCrossAccountCatalog:
@@ -43,9 +46,11 @@ Resources:
       Environment:
         Variables:
           TARGET_ACCOUNT_ID:
-            Ref: "GlueDataCatalogAccountID"
+            Ref: GlueDataCatalogAccountID
           CATALOG_NAME:
-            Ref: "AthenaCatalogName"
+            Ref: AthenaCatalogName
+          CATALOG_REGION:
+            Ref: GlueDataCatalogRegion
       Handler: heracles.lambda.handler
       Role:
         Fn::GetAtt: [ LambdaExecutionRole, Arn ]
