@@ -63,6 +63,11 @@ class GlueClient(object):
         """Retrieve all partitions from the a Glue Data Catalog table and return as a list of partition objects."""
         resp = self.fetch_all('get_partitions', 'Partitions', **kwargs)
         return {'Partitions': resp}
+        
+    def get_all_partition_values(self, **kwargs):
+        """Retrieve all partition names from Glue Data Catalog and return list of partition values."""
+        resp = self.fetch_all('get_partitions', 'Partitions', **kwargs)
+        return [r.get('Values') for r in resp]
 
     def fetch_all(self, method_name, response_key, **kwargs):
         """Fetches all responses from the Glue API and concatenates the values of `response_key` into a list."""

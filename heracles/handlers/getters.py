@@ -159,3 +159,31 @@ class GetPartitionsByNames(HandlerBase):
 
     def _get_partition_values(self, request_name):
         return ','.join([x.split('=')[1] for x in request_name.split('/')])
+
+class getPartitionNames(HandlerBase):
+    def execute(self, request_dict):
+        databaseName = request_dict.get('dbName')
+        tableName = request_dict.get('tableName')
+
+        # Fetch partition keys
+        partition_keys = GlueClient().get_table(
+            DatabaseName=databaseName,
+            Name=tableName
+        )
+        partition_keys = partition_keys['Table']['PartitionKeys']
+        
+        # Fetch partition values
+        partition_values = GlueClient().get_all_partition_values(
+            DatabaseName=databaseName,
+            TableName=tableName
+        )
+        
+        # Map partition keys with values to create final list
+        partitionNames = []
+        for part_value in partition_values:
+            parts = []
+            for i in range(len(partition_keys)):
+                parts.append("{}={}".format(partition_keys[i]['Name'], part_value[i]))
+            partitionNames.append('/'.join(parts))
+        
+        return {'partitionNames': partitionNames}

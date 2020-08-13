@@ -28,7 +28,7 @@ Usage of this package requires the following:
 
 Follow the steps below, replacing the variables as necessary. You can also use the the [crossaccountathena.cf.yaml](crossaccountathena.cf.yaml) CloudFormation template to create the IAM role and Lambda function, but you'll need to perform the [Grant Cross-account Access to Lambda](#grant-cross-account-access-to-lambda) step manually.
 
-For CloudFormation, download the [function2.zip](target/function2.zip) and upload it to your S3 bucket as it needs to be provided in the CloudFormation template. Then, while launching the CFN stack, specify this S3 bucket, key path, source AWS account ID and Athena catalog name. It'll create the Lambda execution role, function and Athena Catalog.
+For CloudFormation, download the [function2.zip](target/function2.zip) and upload it to your S3 bucket as it needs to be provided in the CloudFormation template. Then, while launching the [CFN stack](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https://aws-bigdata-blog.s3.amazonaws.com/artifacts/aws-blog-cross-account-athena/cross_account_athena_stack.yaml), specify this S3 bucket, key path, source AWS account ID and Athena catalog name. It'll create the Lambda execution role, function and Athena Catalog.
 
 
 ### Create IAM Role
