@@ -98,12 +98,15 @@ class HiveMappers:
 
     @staticmethod
     def map_glue_partition_for_table(databaseName, tableName, glue_partition):
+        createTime = glue_partition['CreationTime'] if isinstance(glue_partition['CreationTime'], int) else HiveMappers.unix_epoch_as_int(glue_partition.get('CreationTime', None))
+        lastAccessTime = glue_partition['LastAccessTime'] if isinstance(glue_partition.get('LastAccessTime', None), int) else HiveMappers.unix_epoch_as_int(glue_partition.get('LastAccessTime', None))
+            
         hive_partition = ttypes.Partition(
             values=glue_partition.get('Values'),
             dbName=databaseName,
             tableName=tableName,
-            createTime=HiveMappers.unix_epoch_as_int(glue_partition.get('CreationTime', None)),
-            lastAccessTime=HiveMappers.unix_epoch_as_int(glue_partition.get('LastAccessTime', None)),
+            createTime=createTime,
+            lastAccessTime=lastAccessTime,
             parameters=glue_partition.get('Parameters', {})
         )
         sd = ttypes.StorageDescriptor(

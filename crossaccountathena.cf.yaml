@@ -9,7 +9,7 @@ Parameters:
     ConstraintDescription: Must be an AWS account ID
   GlueDataCatalogRegion:
     Type: String
-    Description: AWS region ID for Glue Catalog (Eg. us-east-1). Defaults to current region if not specified.
+    Description: (Optional) AWS region ID for Glue Catalog (Eg. us-east-1). Defaults to current region if not specified.
   AthenaCatalogName:
     Type: String
     Description: Athena Catalog name for custom data source
@@ -21,6 +21,9 @@ Parameters:
   LambdaCodeS3Key:
     Type: String
     Description: S3 path to function zip file. Eg. prefix/functionv2.zip
+  S3SpillLocation:
+    Type: String
+    Description: (Optional) S3 path to spill Lambda response so that it doesn't exceed Lambda's limit. Eg. s3://<bucket>/<spill-prefx>/
 
 Resources:
   AthenaCrossAccountCatalog:
@@ -51,6 +54,8 @@ Resources:
             Ref: AthenaCatalogName
           CATALOG_REGION:
             Ref: GlueDataCatalogRegion
+          SPILL_LOCATION:
+            Ref: S3SpillLocation
       Handler: heracles.lambda.handler
       Role:
         Fn::GetAtt: [ LambdaExecutionRole, Arn ]
@@ -98,6 +103,12 @@ Resources:
             - glue:GetTableVersion
             - glue:GetTableVersions
             Resource: "*"
+          - Effect: Allow
+            Action:
+            - s3:PutObject
+            - s3:GetObject
+            Resource: 
+            - !Join ['', ['arn:aws:s3:::', !Select [1, !Split ["s3://", !Ref S3SpillLocation]], '*']]
 Outputs:
   CrossAccountPrincipal:
     Description: The Principal to grant access to in the Glue Data Catalog Account

@@ -5,7 +5,8 @@ from heracles.handlers.handlerbase import HandlerBase
 from heracles.handlers.hive_mappers import HiveMappers
 from heracles.hive.hive_metastore import ttypes
 from heracles.clients.glue import GlueClient
-
+from heracles.clients.s3 import S3Client
+import json, sys
 
 class GetAllDatabases(HandlerBase):
     def execute(self, request_dict):
@@ -122,61 +123,142 @@ class GetPartitions(HandlerBase):
     def execute(self, request_dict):
         databaseName = request_dict.get('dbName')
         tableName = request_dict.get('tableName')
+        
+        # For table with spilled content, fetch response from S3 to optimize query execution time
+        key = "GetPartitions-{}-{}.json".format(databaseName, tableName)
+        spillPath = S3Client().check_spill_exists(Key=key)
+        if spillPath:
+            return {'spillPath': spillPath}
+        else:
+            partition_list, response = self.get_partitions(databaseName, tableName)
+            
+            # set spill threshold of 4MB for the response size
+            output = json.dumps(partition_list)
+            response_size = sys.getsizeof(output)
+            if response_size > 4194304:
+                print("Response size ({}) exceeds 4MB threshold. Spilling to S3.".format(response_size))
+                spillPath = self.spill_partitions_to_s3('GetPartitions', databaseName, tableName, output)
+                
+                # Since there are two many partitions, let's proactively map and spill this response for subsequent calls getPartitionNames and getPartitionsByNames
+                pv = [r.get('Values') for r in response['Partitions']]
+                partition_values = GetPartitionNames().map_partition_keys_values(databaseName, tableName, pv)
+                partition_values = json.dumps(partition_values)
 
+                self.spill_partitions_to_s3('GetPartitionNames', databaseName, tableName, partition_values)
+                
+                # Perform similar proactive spill for GetPartitionsByNames API as well
+                partitions_by_names = []
+                for partition in response['Partitions']:
+                    partition['CreationTime'] = HiveMappers.unix_epoch_as_int(partition.get('CreationTime', None))
+                    partition['LastAccessTime'] = HiveMappers.unix_epoch_as_int(partition.get('LastAccessTime', None))
+                    partitions_by_names.append(partition)
+                partitions_by_names = json.dumps({"Partitions": partitions_by_names})
+                self.spill_partitions_to_s3('GetPartitionByNames', databaseName, tableName, partitions_by_names)
+                
+                # Response for GetPartitions API
+                return {'spillPath': spillPath}
+            else:
+                return partition_list
+    
+    def get_partitions(self, databaseName, tableName):
         response = GlueClient().get_all_partitions(
-            DatabaseName=databaseName,
-            TableName=tableName,
+                DatabaseName=databaseName,
+                TableName=tableName,
         )
 
         partition_list = []
         for partition in response['Partitions']:
             hive_partition = HiveMappers.map_glue_partition_for_table(databaseName, tableName, partition)
             partition_list.append(self.encode_response(hive_partition).decode('utf-8'))
-
-        return {"partitions": partition_list}
-
+        return {"partitions": partition_list}, response
+        
+    def spill_partitions_to_s3(self, api, databaseName, tableName, body):
+        key = "{}-{}-{}.json".format(api, databaseName, tableName)
+        body = body.encode('utf-8')
+        return S3Client().spill_response_to_s3(
+            Key=key,
+            Body=body
+        )
 
 class GetPartitionsByNames(HandlerBase):
     def execute(self, request_dict):
         databaseName = request_dict.get('dbName')
         tableName = request_dict.get('tableName')
-
+        
         # `names` is a slash-delimited list of partition key/value pairs that is at least size 1
         partition_names = request_dict.get('names')
-
-        partition_list = []
-        for partition in partition_names:
-            part_value = self._get_partition_values(partition)
-            response = GlueClient().get_partition(
-                DatabaseName=databaseName,
-                TableName=tableName,
-                PartitionValues=[part_value]
-            )
-            hive_partition = HiveMappers.map_glue_partition_for_table(databaseName, tableName, response['Partition'])
-            partition_list.append(self.encode_response(hive_partition).decode('utf-8'))
-
-        return {'partitionDescs': partition_list}
+        print("Partitions requested: {}". format(len(partition_names)))
+        
+        # Check for existing spill based on first partition value requested in the API
+        range_key = "GetPartitionByNames-{}-{}-spill-{}.json".format(databaseName, tableName, self._get_partition_values(partition_names[0]))
+        spillPath = S3Client().check_spill_exists(Key=range_key)
+        if spillPath:
+            return {'spillPath': spillPath}
+        
+        # For table with spilled content, fetch response from S3 to optimize query execution time
+        key = "GetPartitionByNames-{}-{}.json".format(databaseName, tableName)
+        if S3Client().check_spill_exists(Key=key) and len(partition_names) > 100:
+            print("GetPartitionByNames Spill exists in S3. Querying from here.")
+            s3_object = S3Client().download_all_partitions(Key=key)
+            all_partitions = json.loads(s3_object)
+            all_partitions = all_partitions['Partitions']
+            partition_list = []
+            for partition in partition_names:
+                part_value = self._get_partition_values(partition)
+                response = next((x for x in all_partitions if ','.join(x['Values']) == part_value), None)
+                if response:
+                    hive_partition = HiveMappers.map_glue_partition_for_table(databaseName, tableName, response)
+                    partition_list.append(self.encode_response(hive_partition).decode('utf-8'))
+            key = "GetPartitionByNames-{}-{}-spill-{}.json".format(databaseName, tableName, self._get_partition_values(partition_names[0]))
+            body = json.dumps({'partitionDescs': partition_list}).encode('utf-8')
+            spillPath = S3Client().spill_response_to_s3(
+                    Key=key,
+                    Body=body
+                )
+            return {'spillPath': spillPath}
+        else:
+            partition_list = []
+            for partition in partition_names:
+                part_value = self._get_partition_values(partition)
+                response = GlueClient().get_partition(
+                    DatabaseName=databaseName,
+                    TableName=tableName,
+                    PartitionValues=[part_value]
+                )
+                hive_partition = HiveMappers.map_glue_partition_for_table(databaseName, tableName, response['Partition'])
+                partition_list.append(self.encode_response(hive_partition).decode('utf-8'))
+            
+            return {'partitionDescs': partition_list}
 
     def _get_partition_values(self, request_name):
         return ','.join([x.split('=')[1] for x in request_name.split('/')])
 
-class getPartitionNames(HandlerBase):
+class GetPartitionNames(HandlerBase):
     def execute(self, request_dict):
         databaseName = request_dict.get('dbName')
         tableName = request_dict.get('tableName')
-
-        # Fetch partition keys
+        
+        # For table with spilled content, fetch response from S3 to optimize query execution time
+        key = "GetPartitionNames-{}-{}.json".format(databaseName, tableName)
+        spillPath = S3Client().check_spill_exists(Key=key)
+        if spillPath:
+            return {'spillPath': spillPath}
+        else:
+            # Fetch partition values
+            partition_values = GlueClient().get_all_partition_values(
+                DatabaseName=databaseName,
+                TableName=tableName
+            )
+        
+            return self.map_partition_keys_values(databaseName, tableName, partition_values)
+        
+    def map_partition_keys_values(self, databaseName, tableName, partition_values):
+        # Fetch partition keys from table
         partition_keys = GlueClient().get_table(
             DatabaseName=databaseName,
             Name=tableName
         )
         partition_keys = partition_keys['Table']['PartitionKeys']
-        
-        # Fetch partition values
-        partition_values = GlueClient().get_all_partition_values(
-            DatabaseName=databaseName,
-            TableName=tableName
-        )
         
         # Map partition keys with values to create final list
         partitionNames = []
@@ -185,5 +267,5 @@ class getPartitionNames(HandlerBase):
             for i in range(len(partition_keys)):
                 parts.append("{}={}".format(partition_keys[i]['Name'], part_value[i]))
             partitionNames.append('/'.join(parts))
-        
+            
         return {'partitionNames': partitionNames}

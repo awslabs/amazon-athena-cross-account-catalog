@@ -1,11 +1,13 @@
 # Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-import os
+import os, json
+from urllib.parse import urlparse
 
 from heracles.handlers.handlerbase import HandlerBase
 from heracles.handlers.getters import GetAllDatabases, GetDatabase, GetAllTables, GetTable, GetPartitions
 from heracles.clients.glue import GlueClient
+from heracles.clients.s3 import S3Client
 
 
 # Instantiate the GlueClient with a default Catalog ID if provided
@@ -19,6 +21,11 @@ if 'CATALOG_REGION' in os.environ and os.environ['CATALOG_REGION'] in available_
 else:
     print("No valid region passed in CATALOG_REGION. Switching to default region {}". format(os.environ['AWS_DEFAULT_REGION']))
     GlueClient._catalog_region = os.environ['AWS_DEFAULT_REGION']
+    
+if 'SPILL_LOCATION' in os.environ:
+    s3_path = urlparse(os.environ['SPILL_LOCATION'])
+    S3Client._spill_bucket = s3_path.netloc
+    S3Client._spill_prefix = s3_path.path.lstrip('/')
 
 def handler(event, context):
     api_name = event.get('apiName')
@@ -34,4 +41,11 @@ def handler(event, context):
         'spillPath': None,
         'apiResponse': result
     }
+    
+    # Set spill path if present in result
+    if 'spillPath' in result:
+        api_response['spilled'] = True
+        api_response['spillPath'] = result['spillPath']
+        api_response['apiResponse'] = None
+        
     return api_response
