@@ -25,6 +25,9 @@ Parameters:
     Type: String
     Description: (Optional) S3 path to spill Lambda response so that it doesn't exceed Lambda's limit. Eg. s3://<bucket>/<spill-prefx>/
 
+Conditions:
+  AddS3Policy: !Not [!Equals [!Ref S3SpillLocation, ""]]
+
 Resources:
   AthenaCrossAccountCatalog:
     Type: AWS::Athena::DataCatalog
@@ -103,12 +106,21 @@ Resources:
             - glue:GetTableVersion
             - glue:GetTableVersions
             Resource: "*"
-          - Effect: Allow
-            Action:
-            - s3:PutObject
-            - s3:GetObject
-            Resource: 
-            - !Join ['', ['arn:aws:s3:::', !Select [1, !Split ["s3://", !Ref S3SpillLocation]], '*']]
+          - !If
+            - AddS3Policy
+            - 
+              Effect: Allow
+              Action:
+              - s3:PutObject
+              - s3:GetObject
+              Resource: !Join ['', ['arn:aws:s3:::', !Select [1, !Split ["s3://", !Ref S3SpillLocation]], '*']]
+            - 
+              Effect: Allow
+              Action:
+              - s3:GetObject
+              NotResource: 'arn:aws:s3:::*'
+
+    
 Outputs:
   CrossAccountPrincipal:
     Description: The Principal to grant access to in the Glue Data Catalog Account

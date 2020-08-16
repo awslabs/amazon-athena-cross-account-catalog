@@ -8,6 +8,7 @@ from heracles.hive.hive_metastore import ttypes
 
 
 class HiveMappers:
+    _catalog_name = None
     @staticmethod
     def map_glue_database(glue_database):
         return ttypes.Database(
@@ -17,14 +18,17 @@ class HiveMappers:
             parameters=glue_database.get('Parameters', {})
         )
 
+    @staticmethod
     def map_presto_view(view_text):
         b64_text = view_text.split(" ")[3]   # fetch base64 encoded string
         b_encode_text = b64_text.encode()
         plain_text = base64.b64decode(b_encode_text)
         view_json = json.loads(plain_text)
         
-        # Set the catalog name to the one being defined in Athena. Getting this from new ENV variable
-        view_json['catalog'] = os.environ['CATALOG_NAME'] 
+        # Set the catalog name to the one being defined in Athena. This is derived from ENV variable. If not set, it'll have default catalog name "AwsDataCatalog"
+        if 'CATALOG_NAME' in os.environ:
+            view_json['catalog'] = os.environ['CATALOG_NAME']
+        else: print("Env variable 'CATALOG_NAME' not set to the corresponding catalog/data source name in Athena.")
         
         plain_text = json.dumps(view_json)
         b_encode_text = base64.b64encode(plain_text.encode())

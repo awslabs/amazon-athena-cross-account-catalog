@@ -9,7 +9,6 @@ from heracles.handlers.getters import GetAllDatabases, GetDatabase, GetAllTables
 from heracles.clients.glue import GlueClient
 from heracles.clients.s3 import S3Client
 
-
 # Instantiate the GlueClient with a default Catalog ID if provided
 if 'TARGET_ACCOUNT_ID' in os.environ:
     GlueClient._catalog_id = os.environ['TARGET_ACCOUNT_ID']
@@ -25,7 +24,13 @@ else:
 if 'SPILL_LOCATION' in os.environ:
     s3_path = urlparse(os.environ['SPILL_LOCATION'])
     S3Client._spill_bucket = s3_path.netloc
-    S3Client._spill_prefix = s3_path.path.lstrip('/')
+    # Add target account id and region as additional prefix. Just to prevent unexpected scenario where multiple Lambda functions use same Spill location, while different catalogs have same DB and table name.
+    S3Client._spill_prefix = "{}{}/{}/".format(s3_path.path.lstrip('/'), GlueClient._catalog_id, GlueClient._catalog_region)
+    
+    # This (in seconds) determines for how long the spilled response will be re-used for subsequent queries.
+    # When a query arrives, if the S3 object is higher than this value, it'll skip the spill and will request Glue.
+    # Then, if the new response size again exceeds spill threshold, it'll overwrite the existing spill with new one.
+    S3Client._spill_ttl = 86400
 
 def handler(event, context):
     api_name = event.get('apiName')
