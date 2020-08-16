@@ -8,7 +8,6 @@ from heracles.hive.hive_metastore import ttypes
 
 
 class HiveMappers:
-    _catalog_name = None
     @staticmethod
     def map_glue_database(glue_database):
         return ttypes.Database(

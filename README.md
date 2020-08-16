@@ -75,6 +75,8 @@ Create a new function in the account where you will be running your Athena queri
 export GLUE_ACCOUNT_ID="<cross account id where Glue Data Catalog exists>"
 export ATHENA_ACCOUNT_ID="<requester_account>"
 export ATHENA_CATALOG_NAME="<catalog_name>"
+export GLUE_CATALOG_REGION="<region-id>"
+export S3_SPILL_LOCATION = "s3://<bucket>/<prefix>"
 export FUNCTION_NAME="<your-desirect-function-name>"
 export LAMBDA_ROLE="arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}"
 
@@ -83,7 +85,7 @@ aws lambda create-function \
   --function-name ${FUNCTION_NAME} \
   --runtime python3.7 \
   --role ${LAMBDA_ROLE} \
-  --environment Variables="{CATALOG_NAME=${ATHENA_CATALOG_NAME},TARGET_ACCOUNT_ID=${GLUE_ACCOUNT_ID}}" \
+  --environment Variables="{CATALOG_NAME=${ATHENA_CATALOG_NAME},TARGET_ACCOUNT_ID=${GLUE_ACCOUNT_ID},CATALOG_REGION=${GLUE_CATALOG_REGION},SPILL_LOCATION=${S3_SPILL_LOCATION}}" \
   --zip-file fileb://target/functionv2.zip \
   --handler "heracles.lambda.handler" \
   --memory-size 256 \
