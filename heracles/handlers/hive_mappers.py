@@ -101,15 +101,12 @@ class HiveMappers:
 
     @staticmethod
     def map_glue_partition_for_table(databaseName, tableName, glue_partition):
-        createTime = glue_partition['CreationTime'] if isinstance(glue_partition['CreationTime'], int) else HiveMappers.unix_epoch_as_int(glue_partition.get('CreationTime', None))
-        lastAccessTime = glue_partition['LastAccessTime'] if isinstance(glue_partition.get('LastAccessTime', None), int) else HiveMappers.unix_epoch_as_int(glue_partition.get('LastAccessTime', None))
-            
         hive_partition = ttypes.Partition(
             values=glue_partition.get('Values'),
             dbName=databaseName,
             tableName=tableName,
-            createTime=createTime,
-            lastAccessTime=lastAccessTime,
+            createTime=HiveMappers.unix_epoch_as_int(glue_partition.get('CreationTime', None)),
+            lastAccessTime=HiveMappers.unix_epoch_as_int(glue_partition.get('LastAccessTime', None)),
             parameters=glue_partition.get('Parameters', {})
         )
         sd = ttypes.StorageDescriptor(
@@ -149,6 +146,10 @@ class HiveMappers:
     @staticmethod
     def unix_epoch_as_int(datetime_obj):
         if datetime_obj is not None:
-            return int(time.mktime(datetime_obj.timetuple()))
+            # For the spilled content, it is already converted to Int.
+            if isinstance(datetime_obj, int):
+                return datetime_obj
+            else:
+                return int(time.mktime(datetime_obj.timetuple()))
         else:
             return 0
