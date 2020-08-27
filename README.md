@@ -176,4 +176,3 @@ aws lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file file
 
 ## Limitations
 - Read only: The currently implementation only implements the necessary functions for read only access as we assume the centralized data catalog is managed by a central team as well.
-- When very large number of partitions are present in the source Glue catalog, running query on the table can encounter long delay delay, timeout and Lambda payload size limit exceed. This is because Lambda functions will need to fetch all partitions, which will require iterative GetPartitions API calls to Glue. Some workarounds to this will be to query table with specific partitions, or to reduce number of partitions in the source table. 

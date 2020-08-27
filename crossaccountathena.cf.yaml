@@ -12,7 +12,7 @@ Parameters:
     Description: (Optional) AWS region ID for Glue Catalog (Eg. us-east-1). Defaults to current region if not specified.
   AthenaCatalogName:
     Type: String
-    Description: Athena Catalog name for custom data source
+    Description: Cross Account Catalog Description
     AllowedPattern: ^[a-z0-9_@-]*$
     ConstraintDescription: Must be lowercase alphabets, digits, underscore, or hyphen
   LambdaCodeS3Bucket:
@@ -23,7 +23,7 @@ Parameters:
     Description: S3 path to function zip file. Eg. prefix/functionv2.zip
   S3SpillLocation:
     Type: String
-    Description: (Optional) S3 path to spill Lambda response so that it doesn't exceed Lambda's limit. Eg. s3://<bucket>/<spill-prefx>/
+    Description: S3 path to spill Lambda response so that it doesn't exceed Lambda's limit. Eg. s3://<bucket>/<spill-prefx>/
 
 Conditions:
   AddS3Policy: !Not [!Equals [!Ref S3SpillLocation, ""]]
