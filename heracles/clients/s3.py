@@ -42,17 +42,18 @@ class S3Client(object):
         
     def check_spill_exists(self, **kwargs):
         spill_path = None
-        try:
-            spill_path = self.call_s3('head_object', **kwargs)
-        except Exception as e: print("Object doesn't exist or inaccessible: {}".format(e))
-        if spill_path:
-            object_age = datetime.now(timezone.utc) - spill_path['LastModified']
-            if object_age.total_seconds() < self._spill_ttl:
-                print("Spill {} exists! Responding".format(kwargs['Key']))
-                spill_path = 's3://{}/{}{}'.format(self._spill_bucket, self._spill_prefix, kwargs['Key'])
-            else: 
-                print("Spill {} TTL expired! Fetching again from Glue Catalog.".format(kwargs['Key']))
-                spill_path = None
+        if self._spill_ttl:
+            try:
+                spill_path = self.call_s3('head_object', **kwargs)
+            except Exception as e: print("Object doesn't exist or inaccessible: {}".format(e))
+            if spill_path:
+                object_age = datetime.now(timezone.utc) - spill_path['LastModified']
+                if object_age.total_seconds() < self._spill_ttl:
+                    print("Spill {} exists! Responding".format(kwargs['Key']))
+                    spill_path = 's3://{}/{}{}'.format(self._spill_bucket, self._spill_prefix, kwargs['Key'])
+                else: 
+                    print("Spill {} TTL expired! Fetching again from Glue Catalog.".format(kwargs['Key']))
+                    spill_path = None
         return spill_path
         
     def download_all_partitions(self, **kwargs):

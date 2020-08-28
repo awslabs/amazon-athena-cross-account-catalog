@@ -24,6 +24,9 @@ Parameters:
   S3SpillLocation:
     Type: String
     Description: S3 path to spill Lambda response so that it doesn't exceed Lambda's limit. Eg. s3://<bucket>/<spill-prefx>/
+  S3SpillTTL:
+    Type: Number
+    Description: (Optional) Unit-Seconds. If set to positive number, it'll reuse the spilled content for this duration.
 
 Conditions:
   AddS3Policy: !Not [!Equals [!Ref S3SpillLocation, ""]]
@@ -59,6 +62,8 @@ Resources:
             Ref: GlueDataCatalogRegion
           SPILL_LOCATION:
             Ref: S3SpillLocation
+          SPILL_TTL:
+            Ref: S3SpillTTL
       Handler: heracles.lambda.handler
       Role:
         Fn::GetAtt: [ LambdaExecutionRole, Arn ]

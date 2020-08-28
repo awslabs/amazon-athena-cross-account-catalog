@@ -27,10 +27,11 @@ if 'SPILL_LOCATION' in os.environ:
     # Add target account id and region as additional prefix. Just to prevent unexpected scenario where multiple Lambda functions use same Spill location, while different catalogs have same DB and table name.
     S3Client._spill_prefix = "{}{}/{}/".format(s3_path.path.lstrip('/'), GlueClient._catalog_id, GlueClient._catalog_region)
     
-    # This (in seconds) determines for how long the spilled response will be re-used for subsequent queries.
-    # When a query arrives, if the S3 object is higher than this value, it'll skip the spill and will request Glue.
-    # Then, if the new response size again exceeds spill threshold, it'll overwrite the existing spill with new one.
-    S3Client._spill_ttl = 86400
+# This (in seconds) determines for how long the spilled response will be re-used for subsequent queries.
+# When a query arrives, if the S3 object is higher than this value, it'll skip the spill and will request Glue.
+# Then, if the new response size again exceeds spill threshold, it'll overwrite the existing spill with new one.
+if 'SPILL_TTL' in os.environ and int(os.environ['SPILL_TTL']) > 0:
+    S3Client._spill_ttl = int(os.environ['SPILL_TTL'])
 
 def handler(event, context):
     api_name = event.get('apiName')
