@@ -177,6 +177,7 @@ aws lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file file
 ## Limitations
 Read only: The currently implementation only implements the necessary functions for read only access as we assume the centralized data catalog is managed by a central team as well.
 
-## Considerations
+## Additional Considerations
 - For tables containing large number of partitions, the Glue response size can be very large and can exceed Lambda payload response size limit. To address this, the response will be spilled to S3 and Athena will fetch it from there. Additionally, if you prefer to reuse the spilled content, you could also set Spill TTL to longer duration (default 0). With this, the subsequent queries will get the metadata information from spilled content, thus optimizing query time performance.
 - Do not set Spill TTL to higher value if your tables get modified often to add/remove partitions. In that case, the queries may not get the latest partition information. So, set this value based on your unique use case. If not sure, set it to very low value and gradually increase it till you get your ideal results.
+- Similarly, if you're setting higher spill TTL and rarely add/remove partitions, you could also invalidate the spilled content either by deleting them from S3 location or by temporarily setting spill TTL to lower value (Lambda Environament Variable: SPILL_TTL).
