@@ -30,7 +30,7 @@ if 'SPILL_LOCATION' in os.environ:
 # This (in seconds) determines for how long the spilled response will be re-used for subsequent queries.
 # When a query arrives, if the S3 object is higher than this value, it'll skip the spill and will request Glue.
 # Then, if the new response size again exceeds spill threshold, it'll overwrite the existing spill with new one.
-if 'SPILL_TTL' in os.environ and int(os.environ['SPILL_TTL']) > 0:
+if 'SPILL_TTL' in os.environ and int(os.environ['SPILL_TTL']) >= 0:
     S3Client._spill_ttl = int(os.environ['SPILL_TTL'])
 
 def handler(event, context):

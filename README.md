@@ -33,22 +33,78 @@ For CloudFormation, download the [function2.zip](target/function2.zip) and uploa
 
 ### Create IAM Role
 
-For now we'll create a role that just uses the default managed Glue Service role and Lambda Execution role.
-
-Best practice would be to only give this role the minimum permissions necessary.
+For now, we'll create a role that has trust relationship with Lambda service and attaches couple of basic policies to grant necesary Glue, S3 and CloudWatch logging permissions. Best practice would be to only give this role the minimum permissions necessary.
 
 ```shell
 export ROLE_NAME=AthenaCrossAccountExecution
-
+export ATHENA_ACCOUNT_ID="<requester_account>"
 
 aws iam create-role --role-name $ROLE_NAME \
-  --assume-role-policy-document '{ "Version": "2012-10-17", "Statement": [ { "Effect": "Allow", "Principal": { "Service": "lambda.amazonaws.com" }, "Action": "sts:AssumeRole" } ] }'
+  --assume-role-policy-document '
+  { 
+    "Version": "2012-10-17",
+    "Statement": [ 
+    { 
+      "Effect": "Allow",
+      "Principal": { 
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+    ]
+  }'
+
+aws iam create-policy --policy-name AWSGlueReadOnlyAndS3SpillAccess --policy-document '
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "glue:BatchGetPartition",
+                "glue:GetDatabase",
+                "glue:GetDatabases",
+                "glue:GetPartition",
+                "glue:GetPartitions",
+                "glue:GetTable",
+                "glue:GetTables",
+                "glue:GetTableVersion",
+                "glue:GetTableVersions"
+            ],
+            "Resource": "*",
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::<your-spill-bucket>/<prefix>/*",
+            "Effect": "Allow"
+        }
+    ]
+}'
+
+aws iam create-policy --policy-name AWSLambdaBasicExecutionRole --policy-document '
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*",
+            "Effect": "Allow"
+        }
+    ]
+}'
 
 aws iam attach-role-policy --role-name $ROLE_NAME \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+  --policy-arn arn:aws:iam::$ATHENA_ACCOUNT_ID:policy/AWSGlueReadOnlyAndS3SpillAccess
 
 aws iam attach-role-policy --role-name $ROLE_NAME \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+  --policy-arn arn:aws:iam::$ATHENA_ACCOUNT_ID:policy/AWSLambdaBasicExecutionRole
 ```
 
 ### Build deployment package
@@ -73,10 +129,10 @@ Create a new function in the account where you will be running your Athena queri
 
 ```shell
 export GLUE_ACCOUNT_ID="<cross account id where Glue Data Catalog exists>"
-export ATHENA_ACCOUNT_ID="<requester_account>"
 export ATHENA_CATALOG_NAME="<catalog_name>"
 export GLUE_CATALOG_REGION="<region-id>"
 export S3_SPILL_LOCATION = "s3://<bucket>/<prefix>"
+expoet S3_SPILL_TTL = 3600   # Spilled content will be valid for 1 hour (60x60 seconds)
 export FUNCTION_NAME="<your-desirect-function-name>"
 export LAMBDA_ROLE="arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}"
 
@@ -85,7 +141,7 @@ aws lambda create-function \
   --function-name ${FUNCTION_NAME} \
   --runtime python3.7 \
   --role ${LAMBDA_ROLE} \
-  --environment Variables="{CATALOG_NAME=${ATHENA_CATALOG_NAME},TARGET_ACCOUNT_ID=${GLUE_ACCOUNT_ID},CATALOG_REGION=${GLUE_CATALOG_REGION},SPILL_LOCATION=${S3_SPILL_LOCATION}}" \
+  --environment Variables="{CATALOG_NAME=${ATHENA_CATALOG_NAME},TARGET_ACCOUNT_ID=${GLUE_ACCOUNT_ID},CATALOG_REGION=${GLUE_CATALOG_REGION},SPILL_LOCATION=${S3_SPILL_LOCATION},SPILL_TTL=${S3_SPILL_TTL}}" \
   --zip-file fileb://target/functionv2.zip \
   --handler "heracles.lambda.handler" \
   --memory-size 256 \

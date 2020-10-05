@@ -26,7 +26,7 @@ Parameters:
     Description: S3 path to spill Lambda response so that it doesn't exceed Lambda's limit. Eg. s3://<bucket>/<spill-prefx>/
   S3SpillTTL:
     Type: Number
-    Description: (Optional) Unit-Seconds. If set to positive number, it'll reuse the spilled content for this duration.
+    Description: (Optional) Unit-Seconds. If set to positive number, it'll reuse the spilled content for this duration. Eg. 3600 for 1 hour
 
 Conditions:
   AddS3Policy: !Not [!Equals [!Ref S3SpillLocation, ""]]

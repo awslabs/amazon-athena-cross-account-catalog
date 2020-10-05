@@ -8,7 +8,7 @@ class S3Client(object):
     _instance = None
     _spill_bucket = None
     _spill_prefix = None
-    _spill_ttl = None
+    _spill_ttl = 0
     
     def __new__(cls):
         if cls._instance is None:
@@ -42,10 +42,10 @@ class S3Client(object):
         
     def check_spill_exists(self, **kwargs):
         spill_path = None
-        if self._spill_ttl:
+        if self._spill_ttl and self._spill_ttl > 0:
             try:
                 spill_path = self.call_s3('head_object', **kwargs)
-            except Exception as e: print("Object doesn't exist or inaccessible: {}".format(e))
+            except Exception as e: print(e)
             if spill_path:
                 object_age = datetime.now(timezone.utc) - spill_path['LastModified']
                 if object_age.total_seconds() < self._spill_ttl:
