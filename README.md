@@ -22,35 +22,89 @@ Users must have access to the S3 resources that the tables point to and be grant
 ## Deployment
 
 Usage of this package requires the following:
-- An `AmazonAthenaPreviewFunctionality` workgroup as per the [Amazon Athena Hive Metastore](https://aws.amazon.com/blogs/big-data/connect-amazon-athena-to-your-apache-hive-metastore-and-use-user-defined-functions/) blog post.
 - Lambda function created and registered with Athena as instructed in [Connecting Athena to an Apache Hive Metastore](https://docs.aws.amazon.com/athena/latest/ug/connect-to-data-source-hive.html)
 - IAM role for the Lambda function to access Glue
 - Cross-account execution access granted to Lambda function
 
 Follow the steps below, replacing the variables as necessary. You can also use the the [crossaccountathena.cf.yaml](crossaccountathena.cf.yaml) CloudFormation template to create the IAM role and Lambda function, but you'll need to perform the [Grant Cross-account Access to Lambda](#grant-cross-account-access-to-lambda) step manually.
 
-### Register account for preview
+For CloudFormation, download the [function2.zip](target/function2.zip) and upload it to your S3 bucket as it needs to be provided in the CloudFormation template. Then, while launching the [CFN stack](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https://aws-bigdata-blog.s3.amazonaws.com/artifacts/aws-blog-cross-account-athena/cross_account_athena_stack.yaml), specify this S3 bucket, key path, source AWS account ID and Athena catalog name. It'll create the Lambda execution role, function and Athena Catalog.
 
-Follow the instructions on the [Amazon Athena Hive Metastore](https://aws.amazon.com/blogs/big-data/connect-amazon-athena-to-your-apache-hive-metastore-and-use-user-defined-functions/) blog post and create a workgroup with the name `AmazonAthenaPreviewFunctionality`.
 
 ### Create IAM Role
 
-For now we'll create a role that just uses the default managed Glue Service role and Lambda Execution role.
-
-Best practice would be to only give this role the minimum permissions necessary.
+For now, we'll create a role that has trust relationship with Lambda service and attaches couple of basic policies to grant necesary Glue, S3 and CloudWatch logging permissions. Best practice would be to only give this role the minimum permissions necessary.
 
 ```shell
 export ROLE_NAME=AthenaCrossAccountExecution
-
+export ATHENA_ACCOUNT_ID="<requester_account>"
 
 aws iam create-role --role-name $ROLE_NAME \
-  --assume-role-policy-document '{ "Version": "2012-10-17", "Statement": [ { "Effect": "Allow", "Principal": { "Service": "lambda.amazonaws.com" }, "Action": "sts:AssumeRole" } ] }'
+  --assume-role-policy-document '
+  { 
+    "Version": "2012-10-17",
+    "Statement": [ 
+    { 
+      "Effect": "Allow",
+      "Principal": { 
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+    ]
+  }'
+
+aws iam create-policy --policy-name AWSGlueReadOnlyAndS3SpillAccess --policy-document '
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "glue:BatchGetPartition",
+                "glue:GetDatabase",
+                "glue:GetDatabases",
+                "glue:GetPartition",
+                "glue:GetPartitions",
+                "glue:GetTable",
+                "glue:GetTables",
+                "glue:GetTableVersion",
+                "glue:GetTableVersions"
+            ],
+            "Resource": "*",
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::<your-spill-bucket>/<prefix>/*",
+            "Effect": "Allow"
+        }
+    ]
+}'
+
+aws iam create-policy --policy-name AWSLambdaBasicExecutionRole --policy-document '
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*",
+            "Effect": "Allow"
+        }
+    ]
+}'
 
 aws iam attach-role-policy --role-name $ROLE_NAME \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+  --policy-arn arn:aws:iam::$ATHENA_ACCOUNT_ID:policy/AWSGlueReadOnlyAndS3SpillAccess
 
 aws iam attach-role-policy --role-name $ROLE_NAME \
-  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+  --policy-arn arn:aws:iam::$ATHENA_ACCOUNT_ID:policy/AWSLambdaBasicExecutionRole
 ```
 
 ### Build deployment package
@@ -74,17 +128,20 @@ This creates a zip file in `target/` that can be uploaded to your Lambda functio
 Create a new function in the account where you will be running your Athena queries.
 
 ```shell
-export GLUE_ACCOUNT_ID=<cross account id where Glue Data Catalog exists>
-export ATHENA_ACCOUNT_ID=<current account from which cross account Glue Data Catalog will be queried>
-export FUNCTION_NAME=cross-account-athena
-export LAMBDA_ROLE=arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}
+export GLUE_ACCOUNT_ID="<cross account id where Glue Data Catalog exists>"
+export ATHENA_CATALOG_NAME="<catalog_name>"
+export GLUE_CATALOG_REGION="<region-id>"
+export S3_SPILL_LOCATION = "s3://<bucket>/<prefix>"
+expoet S3_SPILL_TTL = 3600   # Spilled content will be valid for 1 hour (60x60 seconds)
+export FUNCTION_NAME="<your-desirect-function-name>"
+export LAMBDA_ROLE="arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}"
 
 
 aws lambda create-function \
   --function-name ${FUNCTION_NAME} \
   --runtime python3.7 \
   --role ${LAMBDA_ROLE} \
-  --environment Variables={TARGET_ACCOUNT_ID=${GLUE_ACCOUNT_ID}} \
+  --environment Variables="{CATALOG_NAME=${ATHENA_CATALOG_NAME},TARGET_ACCOUNT_ID=${GLUE_ACCOUNT_ID},CATALOG_REGION=${GLUE_CATALOG_REGION},SPILL_LOCATION=${S3_SPILL_LOCATION},SPILL_TTL=${S3_SPILL_TTL}}" \
   --zip-file fileb://target/functionv2.zip \
   --handler "heracles.lambda.handler" \
   --memory-size 256 \
@@ -174,4 +231,9 @@ aws lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file file
 ```
 
 ## Limitations
-- Read only: The currently implementation only implements the necessary functions for read only access as we assume the centralized data catalog is managed by a central team as well.
+Read only: The currently implementation only implements the necessary functions for read only access as we assume the centralized data catalog is managed by a central team as well.
+
+## Additional Considerations
+- For tables containing large number of partitions, the Glue response size can be very large and can exceed Lambda payload response size limit. To address this, the response will be spilled to S3 and Athena will fetch it from there. Additionally, if you prefer to reuse the spilled content, you could also set Spill TTL to longer duration (default 0). With this, the subsequent queries will get the metadata information from spilled content, thus optimizing query time performance.
+- Do not set Spill TTL to higher value if your tables get modified often to add/remove partitions. In that case, the queries may not get the latest partition information. So, set this value based on your unique use case. If not sure, set it to very low value and gradually increase it till you get your ideal results.
+- Similarly, if you're setting higher spill TTL and rarely add/remove partitions, you could also invalidate the spilled content either by deleting them from S3 location or by temporarily setting spill TTL to lower value (Lambda Environament Variable: SPILL_TTL).

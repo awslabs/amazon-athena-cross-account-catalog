@@ -1,0 +1,58 @@
+{
+        "Name": "ecomdash_order_19_fast",
+        "Retention": 0,
+        "StorageDescriptor": {
+            "Columns": [
+                {
+                    "Name": "account_id",
+                    "Type": "bigint"
+                },
+                {
+                    "Name": "event_name",
+                    "Type": "string"
+                },
+                {
+                    "Name": "event_properties",
+                    "Type": "struct<Comments:string,CompanyId:bigint,CustomerContactId:bigint,CustomerInfo:struct<Address:struct<City:string,Country:string,Id:bigint,IsResidential:boolean,State:string,Street1:string,Street2:string,Street3:string,UrbanizationCode:string,ZipCode:string>,AddressId:bigint,BusinessPhone:string,CompanyName:string,EmailAddress:string,FaxNumber:string,FirstName:string,FullName:string,Id:bigint,IsMarketable:boolean,LastName:string,MobilePhone:string>,DateCreatedInEcomdash:timestamp,DeliveryMethod:string,DiscountAmount:decimal(19,4),EcomdashId:bigint,IsAmazonPrime:boolean,IsFBA:boolean,IsOnHold:boolean,LastModifiedDate:timestamp,LineItems:array<struct<EcommerceLineItemId:string,EcommerceShipmentId:string,EcommerceTransactionId:bigint,LineItemTotal:decimal(19,4),OrderLineItemId:bigint,ProductId:bigint,ProductName:string,QuantityNotTiedToShipment:double,QuantitySold:double,SalesOrderId:bigint,SkuNumber:string,SoldAsName:string,SupplierId:bigint,SupplierName:string,UnitPrice:decimal(19,4),WarehouseId:bigint,WarehouseName:string>>,NeedsFulfillment:boolean,OrderNumber:string,OtherAmount:decimal(19,4),Partner:string,PartnerId:bigint,PayPalTransactionIds:array<string>,PaymentReceivedDate:timestamp,PurchaseDate:timestamp,ShipToCustomerInfo:boolean,ShipmentServiceType:string,ShippingAddressId:bigint,ShippingAmountCollected:decimal(19,4),ShippingCarrierRequested:string,ShippingInfo:struct<Address:struct<City:string,Country:string,Id:bigint,IsResidential:boolean,State:string,Street1:string,Street2:string,Street3:string,UrbanizationCode:string,ZipCode:string>,AddressId:bigint,BusinessPhone:string,CompanyName:string,EmailAddress:string,FaxNumber:string,FirstName:string,FullName:string,Id:bigint,IsMarketable:boolean,LastName:string,MobilePhone:string>,ShippingServiceRequested:string,Status:string,StorefrontId:bigint,StorefrontName:string,StorefrontOrderId:string,StorefrontOrderNumber:string,StorefrontType:string,Tax1Amount:decimal(19,4),Tax2Amount:decimal(19,4),Tax3Amount:decimal(19,4),TotalAmount:decimal(19,4),eBaySellingProRecordNumber:string>"
+                },
+                {
+                    "Name": "event_time",
+                    "Type": "timestamp"
+                },
+                {
+                    "Name": "producer_id",
+                    "Type": "string"
+                },
+                {
+                    "Name": "tracking_id",
+                    "Type": "string"
+                },
+                {
+                    "Name": "contact_id",
+                    "Type": "string"
+                },
+                {
+                    "Name": "contact_status",
+                    "Type": "string"
+                }
+            ],
+            "Location": "s3://bsajjan-bigdata/cases/fixed_bytes_decimal/",
+            "InputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat",
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat",
+            "Compressed": false,
+            "NumberOfBuckets": 0,
+            "SerdeInfo": {
+                "Name": "ecomdash_order_19_fast",
+                "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
+                "Parameters": {
+                    "serialization.format": "1"
+                }
+            },
+            "SortColumns": [],
+            "StoredAsSubDirectories": false
+        },
+	"TableType": "EXTERNAL_TABLE",
+        "Parameters": {
+            "EXTERNAL": "TRUE"
+        }
+}

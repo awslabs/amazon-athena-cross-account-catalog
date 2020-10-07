@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import time
+import base64, json, os
 
 from heracles.hive.hive_metastore import ttypes
 
@@ -16,6 +17,22 @@ class HiveMappers:
             parameters=glue_database.get('Parameters', {})
         )
 
+    @staticmethod
+    def map_presto_view(view_text):
+        b64_text = view_text.split(" ")[3]   # fetch base64 encoded string
+        b_encode_text = b64_text.encode()
+        plain_text = base64.b64decode(b_encode_text)
+        view_json = json.loads(plain_text)
+        
+        # Set the catalog name to the one being defined in Athena. This is derived from ENV variable. If not set, it'll have default catalog name "AwsDataCatalog"
+        if 'CATALOG_NAME' in os.environ:
+            view_json['catalog'] = os.environ['CATALOG_NAME']
+        else: print("Env variable 'CATALOG_NAME' not set to the corresponding catalog/data source name in Athena.")
+        
+        plain_text = json.dumps(view_json)
+        b_encode_text = base64.b64encode(plain_text.encode())
+        return "/* Presto View: {} */".format(b_encode_text.decode()), view_json['originalSql']
+    
     @staticmethod
     def map_glue_table(databaseName, tableName, glue_table):
         # Create the base table type
@@ -37,6 +54,16 @@ class HiveMappers:
                 ) for key in glue_table.get('PartitionKeys', [])
             ]
         )
+        
+        # To distinguish View from External table
+        if glue_table['TableType'] == "VIRTUAL_VIEW":
+            # Manipulating the catalog within ViewOriginalText so that it doesn't point to original catalog name
+            table.viewOriginalText, table.viewExpandedText = HiveMappers.map_presto_view(glue_table['ViewOriginalText'])
+            
+            # View doesn't contain SerdeInfo, so setting these to empty to prevent exception
+            glue_table['StorageDescriptor']['SerdeInfo']['SerializationLibrary'] = ""
+            glue_table['StorageDescriptor']['SerdeInfo']['Parameters'] = {}
+        
         # Map the storage description
         sd = ttypes.StorageDescriptor(
             cols=[
@@ -119,6 +146,10 @@ class HiveMappers:
     @staticmethod
     def unix_epoch_as_int(datetime_obj):
         if datetime_obj is not None:
-            return int(time.mktime(datetime_obj.timetuple()))
+            # For the spilled content, it is already converted to Int.
+            if isinstance(datetime_obj, int):
+                return datetime_obj
+            else:
+                return int(time.mktime(datetime_obj.timetuple()))
         else:
             return 0
