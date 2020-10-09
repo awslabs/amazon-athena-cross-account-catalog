@@ -132,7 +132,7 @@ export GLUE_ACCOUNT_ID="<cross account id where Glue Data Catalog exists>"
 export ATHENA_CATALOG_NAME="<catalog_name>"
 export GLUE_CATALOG_REGION="<region-id>"
 export S3_SPILL_LOCATION = "s3://<bucket>/<prefix>"
-expoet S3_SPILL_TTL = 3600   # Spilled content will be valid for 1 hour (60x60 seconds)
+export S3_SPILL_TTL = 3600   # Spilled content will be valid for 1 hour (60x60 seconds)
 export FUNCTION_NAME="<your-desirect-function-name>"
 export LAMBDA_ROLE="arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}"
 

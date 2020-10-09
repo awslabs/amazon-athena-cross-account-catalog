@@ -18,16 +18,46 @@ class HiveMappers:
         )
 
     @staticmethod
-    def map_presto_view(view_text):
+    def map_presto_view(view_text, db, columns):
         b64_text = view_text.split(" ")[3]   # fetch base64 encoded string
         b_encode_text = b64_text.encode()
         plain_text = base64.b64decode(b_encode_text)
-        view_json = json.loads(plain_text)
         
         # Set the catalog name to the one being defined in Athena. This is derived from ENV variable. If not set, it'll have default catalog name "AwsDataCatalog"
         if 'CATALOG_NAME' in os.environ:
-            view_json['catalog'] = os.environ['CATALOG_NAME']
-        else: print("Env variable 'CATALOG_NAME' not set to the corresponding catalog/data source name in Athena.")
+            catalog = os.environ['CATALOG_NAME']
+        else: 
+            catalog = ""
+            print("Env variable 'CATALOG_NAME' not set to the corresponding catalog/data source name in Athena.")
+        
+        try:
+            view_json = json.loads(plain_text)
+        except Exception as e:
+            # ---------- To handle Hive View (experimental) -------
+            print("Not a valid Presto View. Trying to fix it.")
+            plain_text = plain_text.decode()
+            b64_text = plain_text.split(" ")[3]
+            b_encode_text = b64_text.encode()
+            plain_text = base64.b64decode(b_encode_text).decode()
+            
+            # Try to make Presto compatible JSON and base64 encode
+            view_json = {}
+            view_json['originalSql'] = plain_text
+            view_json['catalog']= catalog
+            view_json['schema'] = db
+            new_cols = []
+            for column in columns:
+                new_col = {}
+                for k, v in column.items():
+                    v = "varchar" if v == "string" else v
+                    new_col[k.lower()] = v
+                new_cols.append(new_col)
+            view_json['columns'] = new_cols
+            b_encode_text = base64.b64encode(json.dumps(view_json).encode())
+            return "/* Presto View: {} */".format(b_encode_text.decode()), plain_text
+            # ---------- End ----------
+        
+        view_json['catalog'] = catalog
         
         plain_text = json.dumps(view_json)
         b_encode_text = base64.b64encode(plain_text.encode())
@@ -58,11 +88,12 @@ class HiveMappers:
         # To distinguish View from External table
         if glue_table['TableType'] == "VIRTUAL_VIEW":
             # Manipulating the catalog within ViewOriginalText so that it doesn't point to original catalog name
-            table.viewOriginalText, table.viewExpandedText = HiveMappers.map_presto_view(glue_table['ViewOriginalText'])
+            table.viewOriginalText, table.viewExpandedText = HiveMappers.map_presto_view(glue_table['ViewOriginalText'], glue_table['DatabaseName'], glue_table['StorageDescriptor']['Columns'])
             
             # View doesn't contain SerdeInfo, so setting these to empty to prevent exception
             glue_table['StorageDescriptor']['SerdeInfo']['SerializationLibrary'] = ""
             glue_table['StorageDescriptor']['SerdeInfo']['Parameters'] = {}
+            
         
         # Map the storage description
         sd = ttypes.StorageDescriptor(
@@ -78,8 +109,8 @@ class HiveMappers:
             compressed=glue_table['StorageDescriptor'].get('Compressed'),
             numBuckets=glue_table['StorageDescriptor'].get('NumberOfBuckets', -1),
             serdeInfo=ttypes.SerDeInfo(
-                serializationLib=glue_table['StorageDescriptor']['SerdeInfo']['SerializationLibrary'],
-                parameters=glue_table['StorageDescriptor']['SerdeInfo']['Parameters'],
+                serializationLib=glue_table['StorageDescriptor'].get('SerdeInfo', {}).get('SerializationLibrary', ''),
+                parameters=glue_table['StorageDescriptor'].get('SerdeInfo', {}).get('Parameters', {}),
             ),
             bucketCols=glue_table['StorageDescriptor'].get('BucketColumns', []),
             sortCols=glue_table['StorageDescriptor'].get('SortColumns', []),
@@ -122,8 +153,8 @@ class HiveMappers:
             compressed=glue_partition['StorageDescriptor'].get('Compressed'),
             numBuckets=glue_partition['StorageDescriptor'].get('NumberOfBuckets', -1),
             serdeInfo=ttypes.SerDeInfo(
-                serializationLib=glue_partition['StorageDescriptor']['SerdeInfo']['SerializationLibrary'],
-                parameters=glue_partition['StorageDescriptor']['SerdeInfo']['Parameters'],
+                serializationLib=glue_partition['StorageDescriptor'].get('SerdeInfo', {}).get('SerializationLibrary', ''),
+                parameters=glue_partition['StorageDescriptor'].get('SerdeInfo', {}).get('Parameters', {}),
             ),
             bucketCols=glue_partition['StorageDescriptor'].get('BucketColumns', []),
             sortCols=glue_partition['StorageDescriptor'].get('SortColumns', []),
