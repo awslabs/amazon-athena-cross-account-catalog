@@ -89,11 +89,6 @@ class HiveMappers:
         if glue_table['TableType'] == "VIRTUAL_VIEW":
             # Manipulating the catalog within ViewOriginalText so that it doesn't point to original catalog name
             table.viewOriginalText, table.viewExpandedText = HiveMappers.map_presto_view(glue_table['ViewOriginalText'], glue_table['DatabaseName'], glue_table['StorageDescriptor']['Columns'])
-            
-            # View doesn't contain SerdeInfo, so setting these to empty to prevent exception
-            glue_table['StorageDescriptor']['SerdeInfo']['SerializationLibrary'] = ""
-            glue_table['StorageDescriptor']['SerdeInfo']['Parameters'] = {}
-            
         
         # Map the storage description
         sd = ttypes.StorageDescriptor(
