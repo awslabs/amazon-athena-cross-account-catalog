@@ -18,50 +18,46 @@ class HiveMappers:
         )
 
     @staticmethod
-    def map_presto_view(view_text, db, columns):
+    def map_presto_view(view_name, view_text, catalog):
         b64_text = view_text.split(" ")[3]   # fetch base64 encoded string
         b_encode_text = b64_text.encode()
         plain_text = base64.b64decode(b_encode_text)
         
-        # Set the catalog name to the one being defined in Athena. This is derived from ENV variable. If not set, it'll have default catalog name "AwsDataCatalog"
-        if 'CATALOG_NAME' in os.environ:
-            catalog = os.environ['CATALOG_NAME']
-        else: 
-            catalog = ""
-            print("Env variable 'CATALOG_NAME' not set to the corresponding catalog/data source name in Athena.")
-        
         try:
             view_json = json.loads(plain_text)
         except Exception as e:
-            # ---------- To handle Hive View (experimental) -------
-            print("Not a valid Presto View. Trying to fix it.")
-            plain_text = plain_text.decode()
-            b64_text = plain_text.split(" ")[3]
-            b_encode_text = b64_text.encode()
-            plain_text = base64.b64decode(b_encode_text).decode()
-            
-            # Try to make Presto compatible JSON and base64 encode
-            view_json = {}
-            view_json['originalSql'] = plain_text
-            view_json['catalog']= catalog
-            view_json['schema'] = db
-            new_cols = []
-            for column in columns:
-                new_col = {}
-                for k, v in column.items():
-                    v = "varchar" if v == "string" else v
-                    new_col[k.lower()] = v
-                new_cols.append(new_col)
-            view_json['columns'] = new_cols
-            b_encode_text = base64.b64encode(json.dumps(view_json).encode())
-            return "/* Presto View: {} */".format(b_encode_text.decode()), plain_text
-            # ---------- End ----------
+            print("{} doesn't contain a valid Presto View definition.".format(view_name))
+            return view_text, None
         
         view_json['catalog'] = catalog
         
         plain_text = json.dumps(view_json)
         b_encode_text = base64.b64encode(plain_text.encode())
         return "/* Presto View: {} */".format(b_encode_text.decode()), view_json['originalSql']
+        
+    # ---------- To handle Hive View (experimental) -------
+    @staticmethod
+    def map_hive_view(view_text, catalog, db, columns):
+        # Try to make Presto compatible JSON and base64 encode
+        view_json = {}
+        view_json['originalSql'] = view_text
+        view_json['catalog']= catalog
+        view_json['schema'] = db
+        new_cols = []
+        for column in columns:
+            new_col = {}
+            for k, v in column.items():
+                # There are some syntatically differences between Hive and Presto View schema. Attempt to make them compatible with Presto.
+                v = v.replace("string", "varchar")
+                v = v.replace("struct", "row")
+                v = v.replace(":", " ")
+                v = v.replace("<", "(")
+                v = v.replace(">", ")")
+                new_col[k.lower()] = v
+            new_cols.append(new_col)
+        view_json['columns'] = new_cols
+        b_encode_text = base64.b64encode(json.dumps(view_json).encode())
+        return "/* Presto View: {} */".format(b_encode_text.decode())
     
     @staticmethod
     def map_glue_table(databaseName, tableName, glue_table):
@@ -87,8 +83,26 @@ class HiveMappers:
         
         # To distinguish View from External table
         if glue_table['TableType'] == "VIRTUAL_VIEW":
+            # Console isn't listing view correctly, so setting it to some other value to make them list under Tables section.
+            table.tableType = "PRESTO_VIEW"
             # Manipulating the catalog within ViewOriginalText so that it doesn't point to original catalog name
-            table.viewOriginalText, table.viewExpandedText = HiveMappers.map_presto_view(glue_table['ViewOriginalText'], glue_table['DatabaseName'], glue_table['StorageDescriptor']['Columns'])
+            # Set the catalog name to the one being defined in Athena. This is derived from ENV variable. If not set, it'll have default catalog name "AwsDataCatalog"
+            if 'CATALOG_NAME' in os.environ:
+                catalog = os.environ['CATALOG_NAME']
+            else:
+                catalog=''
+                print("Env variable 'CATALOG_NAME' not set to the corresponding catalog/data source name in Athena.")
+            
+            if "Presto" in glue_table['ViewOriginalText']:
+                table.viewOriginalText, table.viewExpandedText = HiveMappers.map_presto_view(table.tableName, glue_table['ViewOriginalText'], catalog)
+            else:
+                # Consider it as Hive view.
+                table.viewExpandedText = glue_table['ViewExpandedText']
+                table.parameters = {
+                    "comment": "Presto View",
+                    "presto_view": "true"
+                }
+                table.viewOriginalText = HiveMappers.map_hive_view(glue_table['ViewOriginalText'], catalog, glue_table['DatabaseName'], glue_table['StorageDescriptor']['Columns'])
         
         # Map the storage description
         sd = ttypes.StorageDescriptor(
