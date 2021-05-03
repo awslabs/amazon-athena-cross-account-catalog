@@ -125,6 +125,10 @@ Resources:
               - s3:GetObject
               NotResource: 'arn:aws:s3:::*'
 
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AthenaCrossAccountLambdaFunction}"
     
 Outputs:
   CrossAccountPrincipal:
