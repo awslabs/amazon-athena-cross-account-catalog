@@ -78,8 +78,8 @@ class HiveMappers:
             compressed=glue_table['StorageDescriptor'].get('Compressed'),
             numBuckets=glue_table['StorageDescriptor'].get('NumberOfBuckets', -1),
             serdeInfo=ttypes.SerDeInfo(
-                serializationLib=glue_table['StorageDescriptor']['SerdeInfo']['SerializationLibrary'],
-                parameters=glue_table['StorageDescriptor']['SerdeInfo']['Parameters'],
+                serializationLib=glue_table['StorageDescriptor'].get('SerdeInfo', {}).get('SerializationLibrary'),
+                parameters=glue_table['StorageDescriptor'].get('SerdeInfo', {}).get('Parameters'),
             ),
             bucketCols=glue_table['StorageDescriptor'].get('BucketColumns', []),
             sortCols=glue_table['StorageDescriptor'].get('SortColumns', []),
@@ -122,8 +122,8 @@ class HiveMappers:
             compressed=glue_partition['StorageDescriptor'].get('Compressed'),
             numBuckets=glue_partition['StorageDescriptor'].get('NumberOfBuckets', -1),
             serdeInfo=ttypes.SerDeInfo(
-                serializationLib=glue_partition['StorageDescriptor']['SerdeInfo']['SerializationLibrary'],
-                parameters=glue_partition['StorageDescriptor']['SerdeInfo']['Parameters'],
+                serializationLib=glue_partition['StorageDescriptor'].get('SerdeInfo', {}).get('SerializationLibrary'),
+                parameters=glue_partition['StorageDescriptor'].get('SerdeInfo', {}).get('Parameters'),
             ),
             bucketCols=glue_partition['StorageDescriptor'].get('BucketColumns', []),
             sortCols=glue_partition['StorageDescriptor'].get('SortColumns', []),
