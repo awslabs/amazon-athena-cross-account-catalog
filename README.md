@@ -2,13 +2,13 @@
 
 🌉 Reference implementation for granting cross-account AWS Glue Data Catalog access from Amazon Athena
 
--------------------------------------
+---
 
 **WARNING**
 
 This is one of many ways to be able to access cross account data catalogs that currently exist. Please evaluate all your options to see which one fits best for your use case.
 
--------------------------------------
+---
 
 ## Overview
 
@@ -22,6 +22,7 @@ Users must have access to the S3 resources that the tables point to and be grant
 ## Deployment
 
 Usage of this package requires the following:
+
 - Lambda function created and registered with Athena as instructed in [Connecting Athena to an Apache Hive Metastore](https://docs.aws.amazon.com/athena/latest/ug/connect-to-data-source-hive.html)
 - IAM role for the Lambda function to access Glue
 - Cross-account execution access granted to Lambda function
@@ -29,7 +30,6 @@ Usage of this package requires the following:
 Follow the steps below, replacing the variables as necessary. You can also use the the [crossaccountathena.cf.yaml](crossaccountathena.cf.yaml) CloudFormation template to create the IAM role and Lambda function, but you'll need to perform the [Grant Cross-account Access to Lambda](#grant-cross-account-access-to-lambda) step manually.
 
 For CloudFormation, download the [function2.zip](target/function2.zip) and upload it to your S3 bucket as it needs to be provided in the CloudFormation template. Then, while launching the [CFN stack](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https://aws-bigdata-blog.s3.amazonaws.com/artifacts/aws-blog-cross-account-athena/cross_account_athena_stack.yaml), specify this S3 bucket, key path, source AWS account ID and Athena catalog name. It'll create the Lambda execution role, function and Athena Catalog.
-
 
 ### Create IAM Role
 
@@ -41,12 +41,12 @@ export ATHENA_ACCOUNT_ID="<requester_account>"
 
 aws iam create-role --role-name $ROLE_NAME \
   --assume-role-policy-document '
-  { 
+{
     "Version": "2012-10-17",
-    "Statement": [ 
-    { 
+    "Statement": [
+    {
       "Effect": "Allow",
-      "Principal": { 
+      "Principal": {
         "Service": "lambda.amazonaws.com"
       },
       "Action": "sts:AssumeRole"
@@ -132,7 +132,7 @@ export GLUE_ACCOUNT_ID="<cross account id where Glue Data Catalog exists>"
 export ATHENA_CATALOG_NAME="<catalog_name>"
 export GLUE_CATALOG_REGION="<region-id>"
 export S3_SPILL_LOCATION = "s3://<bucket>/<prefix>"
-expoet S3_SPILL_TTL = 3600   # Spilled content will be valid for 1 hour (60x60 seconds)
+export S3_SPILL_TTL = 3600   # Spilled content will be valid for 1 hour (60x60 seconds)
 export FUNCTION_NAME="<your-desirect-function-name>"
 export LAMBDA_ROLE="arn:aws:iam::${ATHENA_ACCOUNT_ID}:role/${ROLE_NAME}"
 
@@ -154,7 +154,7 @@ Follow the instructions in the [Hive Metastore blog post](https://aws.amazon.com
 
 ### Grant Cross-account Access to Lambda
 
-Finally we need to [grant cross-account access](https://docs.aws.amazon.com/glue/latest/dg/cross-account-access.html) using a resource policy. 
+Finally we need to [grant cross-account access](https://docs.aws.amazon.com/glue/latest/dg/cross-account-access.html) using a resource policy.
 
 This command allows the Lamba function you created in the first account to read any Glue Data Catalog database or table in second account. Run this command in second account where Glue Data Catalog exists.
 
@@ -231,9 +231,12 @@ aws lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file file
 ```
 
 ## Limitations
+
 Read only: The currently implementation only implements the necessary functions for read only access as we assume the centralized data catalog is managed by a central team as well.
 
 ## Additional Considerations
+
 - For tables containing large number of partitions, the Glue response size can be very large and can exceed Lambda payload response size limit. To address this, the response will be spilled to S3 and Athena will fetch it from there. Additionally, if you prefer to reuse the spilled content, you could also set Spill TTL to longer duration (default 0). With this, the subsequent queries will get the metadata information from spilled content, thus optimizing query time performance.
 - Do not set Spill TTL to higher value if your tables get modified often to add/remove partitions. In that case, the queries may not get the latest partition information. So, set this value based on your unique use case. If not sure, set it to very low value and gradually increase it till you get your ideal results.
 - Similarly, if you're setting higher spill TTL and rarely add/remove partitions, you could also invalidate the spilled content either by deleting them from S3 location or by temporarily setting spill TTL to lower value (Lambda Environament Variable: SPILL_TTL).
+
