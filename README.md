@@ -27,9 +27,18 @@ Usage of this package requires the following:
 - IAM role for the Lambda function to access Glue
 - Cross-account execution access granted to Lambda function
 
-Follow the steps below, replacing the variables as necessary. You can also use the the [crossaccountathena.cf.yaml](crossaccountathena.cf.yaml) CloudFormation template to create the IAM role and Lambda function, but you'll need to perform the [Grant Cross-account Access to Lambda](#grant-cross-account-access-to-lambda) step manually.
+Follow the steps below, replacing the variables as necessary. You can also use one of the the CloudFormation templates [crossaccountathena.cf.yaml](crossaccountathena.cf.yaml) for the zipped Lambda or [crossaccountathena-dockerized.cf.yaml](crossaccountathena-dockerized.cf.yaml) for dockerized Lambda to create the IAM role and Lambda function, but you'll need to perform the [Grant Cross-account Access to Lambda](#grant-cross-account-access-to-lambda) step manually.
 
-For CloudFormation, download the [function2.zip](target/function2.zip) and upload it to your S3 bucket as it needs to be provided in the CloudFormation template. Then, while launching the [CFN stack](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https://aws-bigdata-blog.s3.amazonaws.com/artifacts/aws-blog-cross-account-athena/cross_account_athena_stack.yaml), specify this S3 bucket, key path, source AWS account ID and Athena catalog name. It'll create the Lambda execution role, function and Athena Catalog.
+
+For CloudFormation, you can use two ways of deploying the Lambda: 
+
+#### 1. Zipped Lambda Function
+
+Download the [function2.zip](target/function2.zip) and upload it to your S3 bucket as it needs to be provided in the CloudFormation template. Then, while launching the [CFN stack](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/create/review?templateURL=https://aws-bigdata-blog.s3.amazonaws.com/artifacts/aws-blog-cross-account-athena/cross_account_athena_stack.yaml), specify this S3 bucket, key path, source AWS account ID and Athena catalog name. It'll create the Lambda execution role, function and Athena Catalog.
+
+#### 2. Dockerized Lambda Function
+
+[Build the docker image](#user-content-docker-image) and push it to your private ECR repository (*Lambda currently doesn't support pulling images from public ECR or any other Docker registry*). Launch the CloudFormation stack and specify the image URI and the other parameters. It'll create the Lambda execution role, function and Athena Catalog.
 
 ### Create IAM Role
 
@@ -109,6 +118,10 @@ aws iam attach-role-policy --role-name $ROLE_NAME \
 
 ### Build deployment package
 
+You can either generate a zip file and upload it to S3 or build a Docker image that can be pushed to ECR.
+
+#### Zip File
+
 You must be using Python3 - I tend to use a virtualenv.
 
 ```shell
@@ -122,6 +135,16 @@ make build
 ```
 
 This creates a zip file in `target/` that can be uploaded to your Lambda function.
+
+#### Docker Image
+You must have [Docker installed](https://docs.docker.com/get-docker/).
+
+Build the Image:
+
+```shell
+docker build -t amazon-athena-cross-account-catalog.
+```
+and [push it to your ECR repository](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html).
 
 ### Create function
 

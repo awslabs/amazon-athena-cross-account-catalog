@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Example AWS Lambda function for Amazon Athena Cross Account functionality
+
+Parameters:
+  GlueDataCatalogAccountID:
+    Type: String
+    Description: AWS account ID for Glue Data Catalog
+    AllowedPattern: \d{12}
+    ConstraintDescription: Must be an AWS account ID
+  GlueDataCatalogRegion:
+    Type: String
+    Description: (Optional) AWS region ID for Glue Catalog (Eg. us-east-1). Defaults to current region if not specified.
+  AthenaCatalogName:
+    Type: String
+    Description: Cross Account Catalog Description
+    AllowedPattern: ^[a-z0-9_@-]*$
+    ConstraintDescription: Must be lowercase alphabets, digits, underscore, or hyphen
+  ImageUri:
+    Type: String
+    Description: The URI to the lambda image.
+  S3SpillLocation:
+    Type: String
+    Description: S3 path to spill Lambda response so that it doesn't exceed Lambda's limit. Eg. s3://<bucket>/<spill-prefx>/
+  S3SpillTTL:
+    Type: Number
+    Description: (Optional) Unit-Seconds. If set to positive number, it'll reuse the spilled content for this duration. Eg. 3600 for 1 hour
+
+Conditions:
+  AddS3Policy: !Not [!Equals [!Ref S3SpillLocation, ""]]
+
+Resources:
+  AthenaCrossAccountCatalog:
+    Type: AWS::Athena::DataCatalog
+    Properties:
+      Name:
+        Ref: "AthenaCatalogName"
+      Description: Custom Hive Catalog Description
+      Type: HIVE
+      Parameters: 
+        metadata-function: 
+          Fn::GetAtt: [ AthenaCrossAccountLambdaFunction, Arn ]
+  
+  AthenaCrossAccountLambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Description: Allows Amazon Athena to query an AWS Glue Data Catalog in a different account
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri
+      Environment:
+        Variables:
+          TARGET_ACCOUNT_ID:
+            Ref: GlueDataCatalogAccountID
+          CATALOG_NAME:
+            Ref: AthenaCatalogName
+          CATALOG_REGION:
+            Ref: GlueDataCatalogRegion
+          SPILL_LOCATION:
+            Ref: S3SpillLocation
+          SPILL_TTL:
+            Ref: S3SpillTTL
+      Role:
+        Fn::GetAtt: [ LambdaExecutionRole, Arn ]
+      Timeout: 300
+      MemorySize: 1024
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: AWSLambdaBasicExecutionRole
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: "*"
+      - PolicyName: AWSGlueReadOnlyAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - glue:BatchGetPartition
+            - glue:GetDatabase
+            - glue:GetDatabases
+            - glue:GetPartition
+            - glue:GetPartitions
+            - glue:GetTable
+            - glue:GetTables
+            - glue:GetTableVersion
+            - glue:GetTableVersions
+            Resource: "*"
+          - !If
+            - AddS3Policy
+            - 
+              Effect: Allow
+              Action:
+              - s3:PutObject
+              - s3:GetObject
+              Resource: !Join ['', ['arn:aws:s3:::', !Select [1, !Split ["s3://", !Ref S3SpillLocation]], '*']]
+            - 
+              Effect: Allow
+              Action:
+              - s3:GetObject
+              NotResource: 'arn:aws:s3:::*'
+
+    
+Outputs:
+  CrossAccountPrincipal:
+    Description: The Principal to grant access to in the Glue Data Catalog Account
+    Value:
+      !Join [ ":", [ "arn:aws:sts:", !Ref "AWS::AccountId", !Join [ "/", [ "assumed-role", !Ref LambdaExecutionRole, !Ref AthenaCrossAccountLambdaFunction ]]]]
