@@ -15,12 +15,9 @@ Parameters:
     Description: Cross Account Catalog Description
     AllowedPattern: ^[a-z0-9_@-]*$
     ConstraintDescription: Must be lowercase alphabets, digits, underscore, or hyphen
-  LambdaCodeS3Bucket:
+  ImageUri:
     Type: String
-    Description: S3 bucket containing function code zip file
-  LambdaCodeS3Key:
-    Type: String
-    Description: S3 path to function zip file. Eg. prefix/functionv2.zip
+    Description: The URI to the lambda image.
   S3SpillLocation:
     Type: String
     Description: S3 path to spill Lambda response so that it doesn't exceed Lambda's limit. Eg. s3://<bucket>/<spill-prefx>/
@@ -47,11 +44,9 @@ Resources:
     Type: "AWS::Lambda::Function"
     Properties:
       Description: Allows Amazon Athena to query an AWS Glue Data Catalog in a different account
+      PackageType: Image
       Code:
-        S3Key: 
-          Ref: LambdaCodeS3Key
-        S3Bucket: 
-          Ref: LambdaCodeS3Bucket
+        ImageUri: !Ref ImageUri
       Environment:
         Variables:
           TARGET_ACCOUNT_ID:
@@ -64,10 +59,8 @@ Resources:
             Ref: S3SpillLocation
           SPILL_TTL:
             Ref: S3SpillTTL
-      Handler: heracles.lambda.handler
       Role:
         Fn::GetAtt: [ LambdaExecutionRole, Arn ]
-      Runtime: python3.7
       Timeout: 300
       MemorySize: 1024
 
