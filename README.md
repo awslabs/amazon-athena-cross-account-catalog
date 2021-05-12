@@ -1,12 +1,12 @@
 # Amazon Athena Cross Account Data Catalog
 
-🌉 Reference implementation for granting cross-account AWS Glue Data Catalog access from Amazon Athena
+🌉 ~~Reference implementation for granting cross-account AWS Glue Data Catalog access from Amazon Athena~~
 
 ---
 
-**WARNING**
+💁 **NOTICE**
 
-This is one of many ways to be able to access cross account data catalogs that currently exist. Please evaluate all your options to see which one fits best for your use case.
+Amazon Athena now officialy supports [connecting to an AWS Glue Data Catalog in another account](https://docs.aws.amazon.com/athena/latest/ug/data-sources-glue-cross-account.html). As such, this repository will be archived in the near future. 
 
 ---
 
